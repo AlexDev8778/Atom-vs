@@ -6,10 +6,12 @@ Simulador educativo 3D de átomos con nubes de probabilidad cuántica para los 1
 
 - **118 elementos** con configuración electrónica real por subniveles s/p/d/f (incluyendo excepciones: Cr, Cu, Pd, Au, etc.)
 - **Nube de probabilidad** generada con Monte Carlo — cada tipo de orbital (s, p, d, f) tiene su distribución angular correcta
+- **Animación de electrones**: todos los puntos de la nube oscilan alrededor de su posición base (proceso de Ornstein-Uhlenbeck — fuerza restauradora + jitter estocástico). Los electrones internos (1s, 2s) se mueven más rápido que los externos (6p, 7s), respetando las diferencias de energía
+- **Vibración nuclear**: el núcleo oscila sinusoidalmente en una dirección aleatoria fija. Amplitud ∝ 1/√A (los átomos pesados vibran menos)
 - **Núcleo realista**: protones (rojo) y neutrones (azul) empaquetados dentro de `R = 1.2 × A^(1/3)` femtómetros
 - **Zoom continuo** con escala logarítmica — de la nube electrónica (~Å) al núcleo (~fm), 100.000x de diferencia
 - **Rotación libre** por arrastre del mouse (ejes X e Y)
-- Panel selector colapsable con hover-expand y búsqueda
+- Panel selector colapsable con hover-expand
 - Panel de info toggleable con configuración electrónica por subnivel
 
 ## Stack
@@ -49,6 +51,7 @@ build.bat
 | Zoom in/out | Rueda del mouse |
 | Rotar átomo | Click + arrastrar |
 | Toggle info | Botón `i` (derecha) |
+| Toggle animación | `Space` o click en `[ ANIM: ON/OFF ]` (centro inferior) |
 | Navegar elementos | ↑ / ↓ |
 
 ## Escala física

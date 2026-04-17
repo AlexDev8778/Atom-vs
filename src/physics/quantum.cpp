@@ -2,6 +2,7 @@
 #include "../data/elements.h"
 #include <random>
 #include <cmath>
+#include <cstdlib>
 
 // Constante QMATH_PI
 static constexpr float QMATH_PI = 3.14159265358979f;
@@ -39,6 +40,7 @@ static void generateS(OrbitalCloud& orb, int pointCount, float baseRadius) {
         p.z = r * cosf(theta);
         p.opacity = (prob / pMax) * 0.8f + 0.2f;
         p.size    = 2.5f;
+        p.ox = p.x; p.oy = p.y; p.oz = p.z; p.speed = 0.0f;
         orb.points.push_back(p);
         generated++;
     }
@@ -77,6 +79,7 @@ static void generateP(OrbitalCloud& orb, int pointCount, float baseRadius, int a
         p.z = r * cosf(theta);
         p.opacity = totalProb * 0.9f + 0.1f;
         p.size    = 2.0f;
+        p.ox = p.x; p.oy = p.y; p.oz = p.z; p.speed = 0.0f;
         orb.points.push_back(p);
         generated++;
     }
@@ -120,6 +123,7 @@ static void generateD(OrbitalCloud& orb, int pointCount, float baseRadius, int v
         p.z = r * cosT;
         p.opacity = totalProb * 0.85f + 0.15f;
         p.size    = 1.8f;
+        p.ox = p.x; p.oy = p.y; p.oz = p.z; p.speed = 0.0f;
         orb.points.push_back(p);
         generated++;
     }
@@ -166,6 +170,7 @@ static void generateF(OrbitalCloud& orb, int pointCount, float baseRadius, int v
         p.z = r * cosT;
         p.opacity = (totalProb - 0.01f) * 0.8f + 0.2f;
         p.size    = 1.5f;
+        p.ox = p.x; p.oy = p.y; p.oz = p.z; p.speed = 0.0f;
         orb.points.push_back(p);
         generated++;
     }
@@ -186,6 +191,7 @@ AtomCloud generateAtomCloud(int atomicNumber, const int config[19], float atomic
     cloud.rotationAngle  = 0.0f;
     cloud.rotationAngleX = 0.0f;
     cloud.pulsePhase     = 0.0f;
+    cloud.animationEnabled = false;
 
     // ── NUBE ELECTRÓNICA ────────────────────────────────────
     float baseUnit = 28.0f;
@@ -217,6 +223,14 @@ AtomCloud generateAtomCloud(int atomicNumber, const int config[19], float atomic
             case 2: generateD(orb, pts, radius, dVariant++); break;
             case 3: generateF(orb, pts, radius, fVariant++); break;
         }
+
+        // Asignar speed a todos los puntos recién generados.
+        // Electrones internos (n bajo) se mueven más rápido.
+        float speed = 80.0f / ((float)n * n);
+        for (auto& p : orb.points) {
+            if (p.speed == 0.0f) p.speed = speed; // solo los recién creados
+        }
+
         cloud.orbitals.push_back(orb);
     }
 
@@ -260,12 +274,47 @@ AtomCloud generateAtomCloud(int atomicNumber, const int config[19], float atomic
     while (placedP < Z) { cloud.nucleons.push_back({0,0,0,true});  placedP++; }
     while (placedN < N) { cloud.nucleons.push_back({0,0,0,false}); placedN++; }
 
+    // ── VIBRACIÓN NUCLEAR ────────────────────────────────────
+    cloud.vibPhase     = 0.0f;
+    cloud.vibFreq      = 2.0f * QMATH_PI * (2.0f + (atomicNumber % 7) * 0.4f); // 2..4.8 Hz
+    cloud.vibAmplitude = 4.5f / sqrtf((float)A);  // núcleos pesados vibran menos
+    if (cloud.vibAmplitude > 6.0f) cloud.vibAmplitude = 6.0f;
+
+    // Dirección aleatoria fija para la vibración
+    float vx = u(nucRng), vy = u(nucRng), vz = u(nucRng);
+    float vlen = sqrtf(vx*vx + vy*vy + vz*vz);
+    if (vlen < 0.001f) vlen = 1.0f;
+    cloud.vibDirX = vx / vlen;
+    cloud.vibDirY = vy / vlen;
+    cloud.vibDirZ = vz / vlen;
+
     return cloud;
 }
 
 void updateAtomCloud(AtomCloud& cloud, float dt) {
-    // Solo actualiza el pulso del núcleo.
-    // La rotación la controla el mouse desde main.cpp.
-    cloud.pulsePhase += 2.0f * QMATH_PI * 2.0f * dt;
-    if (cloud.pulsePhase > 2.0f * QMATH_PI) cloud.pulsePhase -= 2.0f * QMATH_PI;
+    if (!cloud.animationEnabled) return;
+
+    // Vibración del núcleo
+    cloud.vibPhase += cloud.vibFreq * dt;
+    if (cloud.vibPhase > 2.0f * QMATH_PI) cloud.vibPhase -= 2.0f * QMATH_PI;
+
+    // Todos los puntos de la nube usan la misma lógica:
+    //   xfit restauradora hacia la posición base (fuerza de muelle suave)
+    //   + kick aleatorio proporcional a speed del orbital
+    static constexpr float RESTORE_K = 3.5f; // rigidez del muelle
+
+    for (auto& orb : cloud.orbitals) {
+        for (auto& p : orb.points) {
+            // Fuerza restauradora hacia la posición base
+            p.x += (p.ox - p.x) * RESTORE_K * dt;
+            p.y += (p.oy - p.y) * RESTORE_K * dt;
+            p.z += (p.oz - p.z) * RESTORE_K * dt;
+
+            // Kick aleatorio (jitter estocástico)
+            float jit = p.speed * dt;
+            p.x += ((rand() % 1000) / 500.0f - 1.0f) * jit;
+            p.y += ((rand() % 1000) / 500.0f - 1.0f) * jit;
+            p.z += ((rand() % 1000) / 500.0f - 1.0f) * jit;
+        }
+    }
 }

@@ -7,7 +7,6 @@
 #include <cmath>
 #include <cstdio>
 
-// Genera el cloud pasando también atomicMass para los nucleones
 static AtomCloud makeCloud(int idx) {
     return generateAtomCloud(
         ELEMENTS[idx].atomicNumber,
@@ -28,45 +27,48 @@ int main(void) {
 
     UIState ui = {-1, false, 0.0f, 0};
 
-    // ── ZOOM ──────────────────────────────────────────────────────────────────
-    // Usamos escala logarítmica: zoomExp en [-2, 6].
-    // zoomFactor = 10^zoomExp.
-    // zoomExp=0 → zoom=1    (vista de la nube electrónica)
-    // zoomExp=5 → zoom=1e5  (núcleo visible con nucleones individuales)
     float zoomExp    = 0.0f;
     float zoomFactor = 1.0f;
+
+    // Lambda para recargar elemento preservando estado
+    auto reloadCloud = [&](int idx) {
+        bool  prevAnim = cloud.animationEnabled;
+        float prevAngY = cloud.rotationAngle;
+        float prevAngX = cloud.rotationAngleX;
+        cloud = makeCloud(idx);
+        cloud.animationEnabled = prevAnim;
+        cloud.rotationAngle    = prevAngY;
+        cloud.rotationAngleX   = prevAngX;
+    };
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
 
-        // ── Navegación de elementos ─────────────────────────────────────────
-        if (IsKeyPressed(KEY_DOWN) && selectedIndex < 117) {
-            selectedIndex++;
-            cloud = makeCloud(selectedIndex);
-        }
-        if (IsKeyPressed(KEY_UP) && selectedIndex > 0) {
-            selectedIndex--;
-            cloud = makeCloud(selectedIndex);
-        }
+        // Navegacion de elementos
+        if (IsKeyPressed(KEY_DOWN) && selectedIndex < 117) reloadCloud(++selectedIndex);
+        if (IsKeyPressed(KEY_UP)   && selectedIndex > 0)   reloadCloud(--selectedIndex);
+
+        // Toggle animacion: Space
+        if (IsKeyPressed(KEY_SPACE)) cloud.animationEnabled = !cloud.animationEnabled;
 
         updateAtomCloud(cloud, dt);
 
-        // ── Zoom con rueda del mouse ─────────────────────────────────────────
+        // Zoom con rueda del mouse (escala logaritmica)
         float scroll = GetMouseWheelMove();
         if (scroll != 0.0f) {
             zoomExp += scroll * 0.15f;
-            if (zoomExp < -2.0f) zoomExp = -2.0f;   // zoom mínimo 0.01x
-            if (zoomExp >  6.0f) zoomExp =  6.0f;   // zoom máximo 1,000,000x
+            if (zoomExp < -2.0f) zoomExp = -2.0f;
+            if (zoomExp >  6.0f) zoomExp =  6.0f;
             zoomFactor = powf(10.0f, zoomExp);
         }
 
-        // ── Rotación por arrastre (click sostenido fuera del strip/botón) ────
+        // Rotacion por arrastre del mouse
         float mx = (float)GetMouseX();
         float my = (float)GetMouseY();
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
         bool overStrip   = (mx < 30.0f);
-        bool overInfoBtn = (mx > GetScreenWidth() - 50 &&
-                            my > GetScreenHeight()/2 - 30 &&
-                            my < GetScreenHeight()/2 + 30);
+        bool overInfoBtn = (mx > sw - 50 && my > sh/2 - 30 && my < sh/2 + 30);
 
         if (IsMouseButtonDown(MOUSE_LEFT_BUTTON) && !overStrip && !overInfoBtn) {
             Vector2 delta = GetMouseDelta();
@@ -76,8 +78,6 @@ int main(void) {
             if (cloud.rotationAngleX < -85.0f) cloud.rotationAngleX = -85.0f;
         }
 
-        int sw = GetScreenWidth();
-        int sh = GetScreenHeight();
         float atomCX = sw / 2.0f;
         float atomCY = sh / 2.0f;
 
@@ -86,20 +86,18 @@ int main(void) {
 
         drawAtom(cloud, ELEMENTS[selectedIndex], atomCX, atomCY, zoomFactor);
 
-        // UI sobre el átomo
+        // UI
         bool stripChanged = drawCollapsedStrip(ui, selectedIndex);
-        if (stripChanged) {
-            cloud = makeCloud(selectedIndex);
-        }
+        if (stripChanged) reloadCloud(selectedIndex);
         drawInfoButton(ui, dt);
         drawInfoOverlay(ELEMENTS[selectedIndex], cloud, ui);
 
-        // Título sutil
+        // Titulo
         const char* title = "ATOM-VS";
         int tw = MeasureText(title, 16);
         DrawText(title, sw / 2 - tw / 2, 10, 16, {40, 80, 160, 120});
 
-        // Indicador de zoom (HUD mínimo)
+        // HUD: zoom
         char zoomBuf[32];
         if (zoomFactor < 1000.0f)
             snprintf(zoomBuf, sizeof(zoomBuf), "zoom x%.1f", zoomFactor);
@@ -108,6 +106,28 @@ int main(void) {
         else
             snprintf(zoomBuf, sizeof(zoomBuf), "zoom x%.2fM", zoomFactor / 1e6f);
         DrawText(zoomBuf, sw - MeasureText(zoomBuf, 10) - 60, sh - 20, 10, {60, 100, 160, 160});
+
+        // HUD: boton de animacion (clickeable, centro inferior)
+        const char* animLabel = cloud.animationEnabled ? "[ ANIM: ON  ]" : "[ ANIM: OFF ]";
+        Color animC = cloud.animationEnabled
+                      ? Color{80, 220, 100, 220}
+                      : Color{120, 120, 140, 160};
+        int almw = MeasureText(animLabel, 12);
+        int almX = sw / 2 - almw / 2;
+        int almY = sh - 26;
+        DrawRectangleRounded({(float)(almX-8), (float)(almY-5), (float)(almw+16), 22.0f},
+                             0.4f, 4, {8, 8, 20, 180});
+        DrawRectangleRoundedLines({(float)(almX-8), (float)(almY-5), (float)(almw+16), 22.0f},
+                                  0.4f, 4, 1.0f, {40, 80, 120, 100});
+        DrawText(animLabel, almX, almY, 12, animC);
+
+        // Click en el boton de animacion
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            float mx2 = (float)GetMouseX();
+            float my2 = (float)GetMouseY();
+            if (mx2 >= almX-8 && mx2 <= almX+almw+8 && my2 >= almY-5 && my2 <= almY+17)
+                cloud.animationEnabled = !cloud.animationEnabled;
+        }
 
         EndDrawing();
     }

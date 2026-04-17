@@ -1,0 +1,27 @@
+# Binarios compilados
+*.exe
+*.o
+*.a
+
+# DLLs (el usuario las compila localmente)
+*.dll
+
+# Fuente descargada de Raylib (se regenera con build_raylib_ogl21.ps1)
+raylib-src.zip
+raylib-4.5.0/
+
+# Librerías compiladas (se regeneran)
+libs/raylib/lib/
+libs/raylib/include/rlgl.h
+libs/raylib/include/raymath.h
+
+# SOLO se sube raylib.h para referencia — los .a los compila el usuario
+# Si querés subir los .h completos, comentá las líneas de arriba.
+
+# Archivos de Windows
+Thumbs.db
+desktop.ini
+*.lnk
+
+# VS Code
+.vscode/
